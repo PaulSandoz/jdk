@@ -1827,6 +1827,11 @@ public class JShellTool implements MessageHandler {
         registerCommand(new Command("/env",
                 arg -> cmdEnv(arg),
                 envCompletion()));
+        registerCommand(new Command("/maven",
+                arg -> cmdMaven(arg),
+                (sn, c, a) -> {
+                    return List.of();
+                }));
         registerCommand(new Command("/reset",
                 arg -> cmdReset(arg),
                 envCompletion()));
@@ -3215,10 +3220,10 @@ public class JShellTool implements MessageHandler {
             for (String a : options.shownOptions()) {
                 sb.append(
                         a.startsWith("-")
-                            ? sb.length() > 0
-                                    ? "\n   "
-                                    :   "   "
-                            : " ");
+                                ? sb.length() > 0
+                                ? "\n   "
+                                :   "   "
+                                : " ");
                 sb.append(a);
             }
             if (sb.length() > 0) {
@@ -3232,6 +3237,28 @@ public class JShellTool implements MessageHandler {
         }
         fluffmsg("jshell.msg.set.restore");
         return doReload(replayableHistory, false, oldOptions);
+    }
+
+    private boolean cmdMaven(String rawargs) {
+        if (rawargs.trim().isEmpty()) {
+            // No arguments, display current settings (as option flags)
+            StringBuilder sb = new StringBuilder();
+            hard("Declare maven artifact groupId:artifactId:version");
+            return false;
+        }
+        String artifact = rawargs.trim();
+//        MavenResolver mr = new MavenResolver("/Users/sandoz/lib/maven/apache-maven-3.6.2", "/Users/sandoz/.m2");
+        MavenResolver mr = new MavenResolver();
+        List<String> jars;
+        try {
+             jars = mr.resolveToClasspath(artifact);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        hard("Loading %s", jars.toString());
+        jars.forEach(state::addToClasspath);
+        return true;
     }
 
     private boolean doReload(ReplayableHistory history, boolean echo, Options oldOptions) {
