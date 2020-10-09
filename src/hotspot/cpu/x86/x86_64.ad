@@ -161,8 +161,8 @@ alloc_class chunk0(R10,         R10_H,
 // Several register classes are automatically defined based upon information in
 // this architecture description.
 // 1) reg_class inline_cache_reg           ( /* as def'd in frame section */ )
-// 2) reg_class compiler_method_oop_reg    ( /* as def'd in frame section */ )
-// 2) reg_class interpreter_method_oop_reg ( /* as def'd in frame section */ )
+// 2) reg_class compiler_method_reg        ( /* as def'd in frame section */ )
+// 2) reg_class interpreter_method_reg     ( /* as def'd in frame section */ )
 // 3) reg_class stack_slots( /* one chunk of stack-based "registers" */ )
 //
 
@@ -932,8 +932,8 @@ void MachEpilogNode::format(PhaseRegAlloc* ra_, outputStream* st) const
   st->print_cr("popq    rbp");
   if (do_polling() && C->is_method_compilation()) {
     st->print("\t");
-    st->print_cr("movq    rscratch1, poll_offset[r15_thread] #polling_page_address\n\t"
-                 "testl   rax, [rscratch1]\t"
+    st->print_cr("cmpq    poll_offset[r15_thread], rsp\n\t"
+                 "ja      #safepoint_stub\t"
                  "# Safepoint: poll for GC");
   }
 }
@@ -980,9 +980,13 @@ void MachEpilogNode::emit(CodeBuffer& cbuf, PhaseRegAlloc* ra_) const
 
   if (do_polling() && C->is_method_compilation()) {
     MacroAssembler _masm(&cbuf);
-    __ movq(rscratch1, Address(r15_thread, Thread::polling_page_offset()));
+    Label dummy_label;
+    Label* code_stub = &dummy_label;
+    if (!C->output()->in_scratch_emit_size()) {
+      code_stub = &C->output()->safepoint_poll_table()->add_safepoint(__ offset());
+    }
     __ relocate(relocInfo::poll_return_type);
-    __ testl(rax, Address(rscratch1, 0));
+    __ safepoint_poll(*code_stub, r15_thread, true /* at_return */, true /* in_nmethod */);
   }
 }
 
@@ -1577,11 +1581,6 @@ uint MachUEPNode::size(PhaseRegAlloc* ra_) const
 
 
 //=============================================================================
-
-int Matcher::regnum_to_fpu_offset(int regnum)
-{
-  return regnum - 32; // The FP registers are in the second chunk
-}
 
 // This is UltraSparc specific, true just means we have fast l2f conversion
 const bool Matcher::convL2FSupported(void) {
@@ -2743,7 +2742,7 @@ frame
   // These three registers define part of the calling convention
   // between compiled code and the interpreter.
   inline_cache_reg(RAX);                // Inline Cache Register
-  interpreter_method_oop_reg(RBX);      // Method Oop Register when
+  interpreter_method_reg(RBX);          // Method Register when
                                         // calling interpreter
 
   // Optional: name the operand used by cisc-spilling to access
@@ -2910,6 +2909,16 @@ operand immI2()
   predicate(0 <= n->get_int() && (n->get_int() <= 3));
   match(ConI);
 
+  format %{ %}
+  interface(CONST_INTER);
+%}
+
+operand immU7()
+%{
+  predicate((0 <= n->get_int()) && (n->get_int() <= 0x7F));
+  match(ConI);
+
+  op_cost(5);
   format %{ %}
   interface(CONST_INTER);
 %}
@@ -4255,16 +4264,6 @@ pipe_class ialu_reg_fat(rRegI dst)
     ALU    : S3;        // any alu
 %}
 
-// Long ALU reg operation using big decoder
-pipe_class ialu_reg_long_fat(rRegL dst)
-%{
-    instruction_count(2);
-    dst    : S4(write);
-    dst    : S3(read);
-    D0     : S0(2);     // big decoder only; twice
-    ALU    : S3(2);     // any 2 alus
-%}
-
 // Integer ALU reg-reg operation
 pipe_class ialu_reg_reg(rRegI dst, rRegI src)
 %{
@@ -4275,16 +4274,6 @@ pipe_class ialu_reg_reg(rRegI dst, rRegI src)
     ALU    : S3;        // any alu
 %}
 
-// Long ALU reg-reg operation
-pipe_class ialu_reg_reg_long(rRegL dst, rRegL src)
-%{
-    instruction_count(2);
-    dst    : S4(write);
-    src    : S3(read);
-    DECODE : S0(2);     // any 2 decoders
-    ALU    : S3(2);     // both alus
-%}
-
 // Integer ALU reg-reg operation
 pipe_class ialu_reg_reg_fat(rRegI dst, memory src)
 %{
@@ -4293,16 +4282,6 @@ pipe_class ialu_reg_reg_fat(rRegI dst, memory src)
     src    : S3(read);
     D0     : S0;        // big decoder only
     ALU    : S3;        // any alu
-%}
-
-// Long ALU reg-reg operation
-pipe_class ialu_reg_reg_long_fat(rRegL dst, rRegL src)
-%{
-    instruction_count(2);
-    dst    : S4(write);
-    src    : S3(read);
-    D0     : S0(2);     // big decoder only; twice
-    ALU    : S3(2);     // both alus
 %}
 
 // Integer ALU reg-mem operation
@@ -11778,7 +11757,7 @@ instruct compB_mem_imm(rFlagsReg cr, memory mem, immI8 imm)
   ins_pipe(ialu_cr_reg_mem);
 %}
 
-instruct testUB_mem_imm(rFlagsReg cr, memory mem, immU8 imm, immI0 zero)
+instruct testUB_mem_imm(rFlagsReg cr, memory mem, immU7 imm, immI0 zero)
 %{
   match(Set cr (CmpI (AndI (LoadUB mem) imm) zero));
 
