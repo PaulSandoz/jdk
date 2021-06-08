@@ -1313,84 +1313,72 @@ public class $vectorteststype$ extends AbstractVectorTest {
 
     // Gather/Scatter load/store tests
 
-    interface FGatherScatterOp {
-        $type$[] apply($type$[] a, int aOffset, int[] b, int bOffset);
-    }
-
-    static void assertArraysEquals($type$[] r, $type$[] a, int[] b, FGatherScatterOp f) {
+    static void assertGatherArraysEquals($type$[] r, $type$[] a, int[] indexMap) {
         int i = 0;
+        int j = 0;
         try {
             for (; i < a.length; i += SPECIES.length()) {
-                Assert.assertEquals(Arrays.copyOfRange(r, i, i+SPECIES.length()),
-                  f.apply(a, i, b, i));
+                j = i;
+                for (; j < i + SPECIES.length(); j++) {
+                    Assert.assertEquals(r[j], a[i + indexMap[j]]);
+                }
             }
         } catch (AssertionError e) {
-            $type$[] ref = f.apply(a, i, b, i);
-            $type$[] res = Arrays.copyOfRange(r, i, i+SPECIES.length());
-            Assert.assertEquals(res, ref,
-              "(ref: " + Arrays.toString(ref) + ", res: " + Arrays.toString(res) + ", a: "
-              + Arrays.toString(Arrays.copyOfRange(a, i, i+SPECIES.length()))
-              + ", b: "
-              + Arrays.toString(Arrays.copyOfRange(b, i, i+SPECIES.length()))
-              + " at index #" + i);
+            Assert.assertEquals(r[j], a[i + indexMap[j]], "at index #" + j);
         }
     }
 
-    interface FGatherMaskedOp {
-        $type$[] apply($type$[] a, int aOffset, boolean[] mask, int[] b, int bOffset);
-    }
-
-    interface FScatterMaskedOp {
-        $type$[] apply($type$[] r, $type$[] a, int aOffset, boolean[] mask, int[] b, int bOffset);
-    }
-
-    static void assertArraysEquals($type$[] r, $type$[] a, int[] b, boolean[] mask, FGatherMaskedOp f) {
+    static void assertGatherArraysEquals($type$[] r, $type$[] a, int[] indexMap, boolean[] mask) {
         int i = 0;
+        int j = 0;
         try {
             for (; i < a.length; i += SPECIES.length()) {
-                Assert.assertEquals(Arrays.copyOfRange(r, i, i+SPECIES.length()),
-                  f.apply(a, i, mask, b, i));
+                j = i;
+                for (; j < i + SPECIES.length(); j++) {
+                    Assert.assertEquals(r[j], mask[j % SPECIES.length()] ? a[i + indexMap[j]]: ($type$) 0);
+                }
             }
         } catch (AssertionError e) {
-            $type$[] ref = f.apply(a, i, mask, b, i);
-            $type$[] res = Arrays.copyOfRange(r, i, i+SPECIES.length());
-            Assert.assertEquals(res, ref,
-              "(ref: " + Arrays.toString(ref) + ", res: " + Arrays.toString(res) + ", a: "
-              + Arrays.toString(Arrays.copyOfRange(a, i, i+SPECIES.length()))
-              + ", b: "
-              + Arrays.toString(Arrays.copyOfRange(b, i, i+SPECIES.length()))
-              + ", mask: "
-              + Arrays.toString(mask)
-              + " at index #" + i);
+            Assert.assertEquals(r[i], mask[j % SPECIES.length()] ? a[i + indexMap[j]]: ($type$) 0, "at index #" + j);
         }
     }
 
-    static void assertArraysEquals($type$[] r, $type$[] a, int[] b, boolean[] mask, FScatterMaskedOp f) {
+    static void assertScatterArraysEquals($type$[] r, $type$[] a, int[] indexMap, boolean[] mask) {
         int i = 0;
-        try {
-            for (; i < a.length; i += SPECIES.length()) {
-                Assert.assertEquals(Arrays.copyOfRange(r, i, i+SPECIES.length()),
-                  f.apply(r, a, i, mask, b, i));
+        int j = 0;
+        $type$[] expected = new $type$[r.length];
+
+        // Store before checking, since the same location may be stored to more than once
+        for (; i < a.length; i += SPECIES.length()) {
+            j = i;
+            for (; j < i + SPECIES.length(); j++) {
+                if (mask[j % SPECIES.length()]) {
+                    expected[i + indexMap[j]] = a[j];
+                }
             }
-        } catch (AssertionError e) {
-            $type$[] ref = f.apply(r, a, i, mask, b, i);
-            $type$[] res = Arrays.copyOfRange(r, i, i+SPECIES.length());
-            Assert.assertEquals(res, ref,
-              "(ref: " + Arrays.toString(ref) + ", res: " + Arrays.toString(res) + ", a: "
-              + Arrays.toString(Arrays.copyOfRange(a, i, i+SPECIES.length()))
-              + ", b: "
-              + Arrays.toString(Arrays.copyOfRange(b, i, i+SPECIES.length()))
-              + ", r: "
-              + Arrays.toString(Arrays.copyOfRange(r, i, i+SPECIES.length()))
-              + ", mask: "
-              + Arrays.toString(mask)
-              + " at index #" + i);
         }
+
+        Assert.assertEquals(r, expected);
     }
 
+    static void assertScatterArraysEquals($type$[] r, $type$[] a, int[] indexMap) {
+        int i = 0;
+        int j = 0;
+        $type$[] expected = new $type$[r.length];
+
+        // Store before checking, since the same location may be stored to more than once
+        for (; i < a.length; i += SPECIES.length()) {
+            j = i;
+            for (; j < i + SPECIES.length(); j++) {
+                expected[i + indexMap[j]] = a[j];
+            }
+        }
+
+        Assert.assertEquals(r, expected);
+    }
 
     @DataProvider
-    public Object[][] $type$UnaryOpIndexProvider() {
+    public Object[][] gatherScatterProvider() {
         return INT_INDEX_GENERATORS.stream().
                 flatMap(fs -> $TYPE$_GENERATORS.stream().map(fa -> {
                     return new Object[] {fa, fs};
@@ -1399,7 +1387,7 @@ public class $vectorteststype$ extends AbstractVectorTest {
     }
 
     @DataProvider
-    public Object[][] $type$UnaryMaskedOpIndexProvider() {
+    public Object[][] gatherScatterMaskProvider() {
         return BOOLEAN_MASK_GENERATORS.stream().
           flatMap(fs -> INT_INDEX_GENERATORS.stream().flatMap(fm ->
             $TYPE$_GENERATORS.stream().map(fa -> {
@@ -1408,30 +1396,11 @@ public class $vectorteststype$ extends AbstractVectorTest {
             toArray(Object[][]::new);
     }
 
-    @DataProvider
-    public Object[][] scatterMaskedOpIndexProvider() {
-        return BOOLEAN_MASK_GENERATORS.stream().
-          flatMap(fs -> INT_INDEX_GENERATORS.stream().flatMap(fm ->
-            $TYPE$_GENERATORS.stream().flatMap(fn ->
-              $TYPE$_GENERATORS.stream().map(fa -> {
-                    return new Object[] {fa, fn, fm, fs};
-            })))).
-            toArray(Object[][]::new);
-    }
 
-
-    static $type$[] gather($type$ a[], int aOffset, int[] b, int bOffset) {
-        $type$[] res = new $type$[SPECIES.length()];
-        for (int i = 0; i < SPECIES.length(); i++) {
-            res[i] = a[b[i + bOffset] + aOffset];
-        }
-        return res;
-    }
-
-    @Test(dataProvider = "$type$UnaryOpIndexProvider")
+    @Test(dataProvider = "gatherScatterProvider")
     static void gather(IntFunction<$type$[]> fa, BiFunction<Integer,Integer,int[]> fs) {
         $type$[] a = fa.apply(SPECIES.length());
-        int[] b    = fs.apply(a.length, SPECIES.length());
+        int[] b = fs.apply(a.length, SPECIES.length());
         $type$[] r = new $type$[a.length];
 
         for (int ic = 0; ic < INVOC_COUNT; ic++) {
@@ -1441,20 +1410,10 @@ public class $vectorteststype$ extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, $vectorteststype$::gather);
+        assertGatherArraysEquals(r, a, b);
     }
 
-    static $type$[] gatherMask($type$ a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
-        $type$[] res = new $type$[SPECIES.length()];
-        for (int i = 0; i < SPECIES.length(); i++) {
-            if (mask[i]) {
-                res[i] = a[b[i + bOffset] + aOffset];
-            }
-        }
-        return res;
-    }
-
-    @Test(dataProvider = "$type$UnaryMaskedOpIndexProvider")
+    @Test(dataProvider = "gatherScatterMaskProvider")
     static void gatherMask(IntFunction<$type$[]> fa, BiFunction<Integer,Integer,int[]> fs, IntFunction<boolean[]> fm) {
         $type$[] a = fa.apply(SPECIES.length());
         int[] b = fs.apply(a.length, SPECIES.length());
@@ -1469,18 +1428,10 @@ public class $vectorteststype$ extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, mask, $vectorteststype$::gatherMask);
+        assertGatherArraysEquals(r, a, b, mask);
     }
 
-    static $type$[] scatter($type$ a[], int aOffset, int[] b, int bOffset) {
-        $type$[] res = new $type$[SPECIES.length()];
-        for (int i = 0; i < SPECIES.length(); i++) {
-            res[b[i + bOffset]] = a[i + aOffset];
-        }
-        return res;
-    }
-
-    @Test(dataProvider = "$type$UnaryOpIndexProvider")
+    @Test(dataProvider = "gatherScatterProvider")
     static void scatter(IntFunction<$type$[]> fa, BiFunction<Integer,Integer,int[]> fs) {
         $type$[] a = fa.apply(SPECIES.length());
         int[] b = fs.apply(a.length, SPECIES.length());
@@ -1493,33 +1444,14 @@ public class $vectorteststype$ extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, $vectorteststype$::scatter);
+        assertScatterArraysEquals(r, a, b);
     }
 
-    static $type$[] scatterMask($type$ r[], $type$ a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
-        // First, gather r.
-        $type$[] oldVal = gather(r, aOffset, b, bOffset);
-        $type$[] newVal = new $type$[SPECIES.length()];
-
-        // Second, blending it with a.
-        for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
-        }
-
-        // Third, scatter: copy old value of r, and scatter it manually.
-        $type$[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
-        for (int i = 0; i < SPECIES.length(); i++) {
-          res[b[i + bOffset]] = newVal[i];
-        }
-
-        return res;
-    }
-
-    @Test(dataProvider = "scatterMaskedOpIndexProvider")
-    static void scatterMask(IntFunction<$type$[]> fa, IntFunction<$type$[]> fb, BiFunction<Integer,Integer,int[]> fs, IntFunction<boolean[]> fm) {
+    @Test(dataProvider = "gatherScatterMaskProvider")
+    static void scatterMask(IntFunction<$type$[]> fa, BiFunction<Integer,Integer,int[]> fs, IntFunction<boolean[]> fm) {
         $type$[] a = fa.apply(SPECIES.length());
         int[] b = fs.apply(a.length, SPECIES.length());
-        $type$[] r = fb.apply(SPECIES.length());
+        $type$[] r = new $type$[a.length];
         boolean[] mask = fm.apply(SPECIES.length());
         VectorMask<$Wideboxtype$> vmask = VectorMask.fromArray(SPECIES, mask, 0);
 
@@ -1530,6 +1462,6 @@ public class $vectorteststype$ extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, mask, $vectorteststype$::scatterMask);
+        assertScatterArraysEquals(r, a, b, mask);
     }
 }

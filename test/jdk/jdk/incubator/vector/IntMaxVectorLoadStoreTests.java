@@ -955,84 +955,72 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
 
     // Gather/Scatter load/store tests
 
-    interface FGatherScatterOp {
-        int[] apply(int[] a, int ix, int[] b, int iy);
-    }
-
-    static void assertArraysEquals(int[] r, int[] a, int[] b, FGatherScatterOp f) {
+    static void assertGatherArraysEquals(int[] r, int[] a, int[] indexMap) {
         int i = 0;
+        int j = 0;
         try {
             for (; i < a.length; i += SPECIES.length()) {
-                Assert.assertEquals(Arrays.copyOfRange(r, i, i+SPECIES.length()),
-                  f.apply(a, i, b, i));
+                j = i;
+                for (; j < i + SPECIES.length(); j++) {
+                    Assert.assertEquals(r[j], a[i + indexMap[j]]);
+                }
             }
         } catch (AssertionError e) {
-            int[] ref = f.apply(a, i, b, i);
-            int[] res = Arrays.copyOfRange(r, i, i+SPECIES.length());
-            Assert.assertEquals(res, ref,
-              "(ref: " + Arrays.toString(ref) + ", res: " + Arrays.toString(res) + ", a: "
-              + Arrays.toString(Arrays.copyOfRange(a, i, i+SPECIES.length()))
-              + ", b: "
-              + Arrays.toString(Arrays.copyOfRange(b, i, i+SPECIES.length()))
-              + " at index #" + i);
+            Assert.assertEquals(r[j], a[i + indexMap[j]], "at index #" + j);
         }
     }
 
-    interface FGatherMaskedOp {
-        int[] apply(int[] a, int ix, boolean[] mask, int[] b, int iy);
-    }
-
-    interface FScatterMaskedOp {
-        int[] apply(int[] r, int[] a, int ix, boolean[] mask, int[] b, int iy);
-    }
-
-    static void assertArraysEquals(int[] r, int[] a, int[] b, boolean[] mask, FGatherMaskedOp f) {
+    static void assertGatherArraysEquals(int[] r, int[] a, int[] indexMap, boolean[] mask) {
         int i = 0;
+        int j = 0;
         try {
             for (; i < a.length; i += SPECIES.length()) {
-                Assert.assertEquals(Arrays.copyOfRange(r, i, i+SPECIES.length()),
-                  f.apply(a, i, mask, b, i));
+                j = i;
+                for (; j < i + SPECIES.length(); j++) {
+                    Assert.assertEquals(r[j], mask[j % SPECIES.length()] ? a[i + indexMap[j]]: (int) 0);
+                }
             }
         } catch (AssertionError e) {
-            int[] ref = f.apply(a, i, mask, b, i);
-            int[] res = Arrays.copyOfRange(r, i, i+SPECIES.length());
-            Assert.assertEquals(res, ref,
-              "(ref: " + Arrays.toString(ref) + ", res: " + Arrays.toString(res) + ", a: "
-              + Arrays.toString(Arrays.copyOfRange(a, i, i+SPECIES.length()))
-              + ", b: "
-              + Arrays.toString(Arrays.copyOfRange(b, i, i+SPECIES.length()))
-              + ", mask: "
-              + Arrays.toString(mask)
-              + " at index #" + i);
+            Assert.assertEquals(r[i], mask[j % SPECIES.length()] ? a[i + indexMap[j]]: (int) 0, "at index #" + j);
         }
     }
 
-    static void assertArraysEquals(int[] r, int[] a, int[] b, boolean[] mask, FScatterMaskedOp f) {
+    static void assertScatterArraysEquals(int[] r, int[] a, int[] indexMap, boolean[] mask) {
         int i = 0;
-        try {
-            for (; i < a.length; i += SPECIES.length()) {
-                Assert.assertEquals(Arrays.copyOfRange(r, i, i+SPECIES.length()),
-                  f.apply(r, a, i, mask, b, i));
+        int j = 0;
+        int[] expected = new int[r.length];
+
+        // Store before checking, since the same location may be stored to more than once
+        for (; i < a.length; i += SPECIES.length()) {
+            j = i;
+            for (; j < i + SPECIES.length(); j++) {
+                if (mask[j % SPECIES.length()]) {
+                    expected[i + indexMap[j]] = a[j];
+                }
             }
-        } catch (AssertionError e) {
-            int[] ref = f.apply(r, a, i, mask, b, i);
-            int[] res = Arrays.copyOfRange(r, i, i+SPECIES.length());
-            Assert.assertEquals(res, ref,
-              "(ref: " + Arrays.toString(ref) + ", res: " + Arrays.toString(res) + ", a: "
-              + Arrays.toString(Arrays.copyOfRange(a, i, i+SPECIES.length()))
-              + ", b: "
-              + Arrays.toString(Arrays.copyOfRange(b, i, i+SPECIES.length()))
-              + ", r: "
-              + Arrays.toString(Arrays.copyOfRange(r, i, i+SPECIES.length()))
-              + ", mask: "
-              + Arrays.toString(mask)
-              + " at index #" + i);
         }
+
+        Assert.assertEquals(r, expected);
     }
 
+    static void assertScatterArraysEquals(int[] r, int[] a, int[] indexMap) {
+        int i = 0;
+        int j = 0;
+        int[] expected = new int[r.length];
+
+        // Store before checking, since the same location may be stored to more than once
+        for (; i < a.length; i += SPECIES.length()) {
+            j = i;
+            for (; j < i + SPECIES.length(); j++) {
+                expected[i + indexMap[j]] = a[j];
+            }
+        }
+
+        Assert.assertEquals(r, expected);
+    }
 
     @DataProvider
-    public Object[][] intUnaryOpIndexProvider() {
+    public Object[][] gatherScatterProvider() {
         return INT_INDEX_GENERATORS.stream().
                 flatMap(fs -> INT_GENERATORS.stream().map(fa -> {
                     return new Object[] {fa, fs};
@@ -1041,7 +1029,7 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
     }
 
     @DataProvider
-    public Object[][] intUnaryMaskedOpIndexProvider() {
+    public Object[][] gatherScatterMaskProvider() {
         return BOOLEAN_MASK_GENERATORS.stream().
           flatMap(fs -> INT_INDEX_GENERATORS.stream().flatMap(fm ->
             INT_GENERATORS.stream().map(fa -> {
@@ -1050,30 +1038,11 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
             toArray(Object[][]::new);
     }
 
-    @DataProvider
-    public Object[][] scatterMaskedOpIndexProvider() {
-        return BOOLEAN_MASK_GENERATORS.stream().
-          flatMap(fs -> INT_INDEX_GENERATORS.stream().flatMap(fm ->
-            INT_GENERATORS.stream().flatMap(fn ->
-              INT_GENERATORS.stream().map(fa -> {
-                    return new Object[] {fa, fn, fm, fs};
-            })))).
-            toArray(Object[][]::new);
-    }
 
-
-    static int[] gather(int a[], int aOffset, int[] b, int bOffset) {
-        int[] res = new int[SPECIES.length()];
-        for (int i = 0; i < SPECIES.length(); i++) {
-            res[i] = a[b[i + bOffset] + aOffset];
-        }
-        return res;
-    }
-
-    @Test(dataProvider = "intUnaryOpIndexProvider")
+    @Test(dataProvider = "gatherScatterProvider")
     static void gather(IntFunction<int[]> fa, BiFunction<Integer,Integer,int[]> fs) {
         int[] a = fa.apply(SPECIES.length());
-        int[] b    = fs.apply(a.length, SPECIES.length());
+        int[] b = fs.apply(a.length, SPECIES.length());
         int[] r = new int[a.length];
 
         for (int ic = 0; ic < INVOC_COUNT; ic++) {
@@ -1083,20 +1052,10 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, IntMaxVectorLoadStoreTests::gather);
+        assertGatherArraysEquals(r, a, b);
     }
 
-    static int[] gatherMask(int a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
-        int[] res = new int[SPECIES.length()];
-        for (int i = 0; i < SPECIES.length(); i++) {
-            if (mask[i]) {
-              res[i] = a[b[i + bOffset] + aOffset];
-            }
-        }
-        return res;
-    }
-
-    @Test(dataProvider = "intUnaryMaskedOpIndexProvider")
+    @Test(dataProvider = "gatherScatterMaskProvider")
     static void gatherMask(IntFunction<int[]> fa, BiFunction<Integer,Integer,int[]> fs, IntFunction<boolean[]> fm) {
         int[] a = fa.apply(SPECIES.length());
         int[] b = fs.apply(a.length, SPECIES.length());
@@ -1111,18 +1070,10 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, mask, IntMaxVectorLoadStoreTests::gatherMask);
+        assertGatherArraysEquals(r, a, b, mask);
     }
 
-    static int[] scatter(int a[], int aOffset, int[] b, int bOffset) {
-        int[] res = new int[SPECIES.length()];
-        for (int i = 0; i < SPECIES.length(); i++) {
-            res[b[i + bOffset]] = a[i + aOffset];
-        }
-        return res;
-    }
-
-    @Test(dataProvider = "intUnaryOpIndexProvider")
+    @Test(dataProvider = "gatherScatterProvider")
     static void scatter(IntFunction<int[]> fa, BiFunction<Integer,Integer,int[]> fs) {
         int[] a = fa.apply(SPECIES.length());
         int[] b = fs.apply(a.length, SPECIES.length());
@@ -1135,33 +1086,14 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, IntMaxVectorLoadStoreTests::scatter);
+        assertScatterArraysEquals(r, a, b);
     }
 
-    static int[] scatterMask(int r[], int a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
-        // First, gather r.
-        int[] oldVal = gather(r, aOffset, b, bOffset);
-        int[] newVal = new int[SPECIES.length()];
-
-        // Second, blending it with a.
-        for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
-        }
-
-        // Third, scatter: copy old value of r, and scatter it manually.
-        int[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
-        for (int i = 0; i < SPECIES.length(); i++) {
-          res[b[i + bOffset]] = newVal[i];
-        }
-
-        return res;
-    }
-
-    @Test(dataProvider = "scatterMaskedOpIndexProvider")
-    static void scatterMask(IntFunction<int[]> fa, IntFunction<int[]> fb, BiFunction<Integer,Integer,int[]> fs, IntFunction<boolean[]> fm) {
+    @Test(dataProvider = "gatherScatterMaskProvider")
+    static void scatterMask(IntFunction<int[]> fa, BiFunction<Integer,Integer,int[]> fs, IntFunction<boolean[]> fm) {
         int[] a = fa.apply(SPECIES.length());
         int[] b = fs.apply(a.length, SPECIES.length());
-        int[] r = fb.apply(SPECIES.length());
+        int[] r = new int[a.length];
         boolean[] mask = fm.apply(SPECIES.length());
         VectorMask<Integer> vmask = VectorMask.fromArray(SPECIES, mask, 0);
 
@@ -1172,6 +1104,6 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
             }
         }
 
-        assertArraysEquals(r, a, b, mask, IntMaxVectorLoadStoreTests::scatterMask);
+        assertScatterArraysEquals(r, a, b, mask);
     }
 }
