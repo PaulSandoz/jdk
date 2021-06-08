@@ -986,14 +986,11 @@ public class FloatMaxVectorLoadStoreTests extends AbstractVectorTest {
     }
 
     static void assertScatterArraysEquals(float[] r, float[] a, int[] indexMap, boolean[] mask) {
-        int i = 0;
-        int j = 0;
         float[] expected = new float[r.length];
 
         // Store before checking, since the same location may be stored to more than once
-        for (; i < a.length; i += SPECIES.length()) {
-            j = i;
-            for (; j < i + SPECIES.length(); j++) {
+        for (int i = 0; i < a.length; i += SPECIES.length()) {
+            for (int j = i; j < i + SPECIES.length(); j++) {
                 if (mask[j % SPECIES.length()]) {
                     expected[i + indexMap[j]] = a[j];
                 }
@@ -1004,14 +1001,11 @@ public class FloatMaxVectorLoadStoreTests extends AbstractVectorTest {
     }
 
     static void assertScatterArraysEquals(float[] r, float[] a, int[] indexMap) {
-        int i = 0;
-        int j = 0;
         float[] expected = new float[r.length];
 
         // Store before checking, since the same location may be stored to more than once
-        for (; i < a.length; i += SPECIES.length()) {
-            j = i;
-            for (; j < i + SPECIES.length(); j++) {
+        for (int i = 0; i < a.length; i += SPECIES.length()) {
+            for (int j = i; j < i + SPECIES.length(); j++) {
                 expected[i + indexMap[j]] = a[j];
             }
         }

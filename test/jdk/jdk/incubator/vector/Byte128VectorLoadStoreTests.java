@@ -1053,14 +1053,11 @@ public class Byte128VectorLoadStoreTests extends AbstractVectorTest {
     }
 
     static void assertScatterArraysEquals(byte[] r, byte[] a, int[] indexMap, boolean[] mask) {
-        int i = 0;
-        int j = 0;
         byte[] expected = new byte[r.length];
 
         // Store before checking, since the same location may be stored to more than once
-        for (; i < a.length; i += SPECIES.length()) {
-            j = i;
-            for (; j < i + SPECIES.length(); j++) {
+        for (int i = 0; i < a.length; i += SPECIES.length()) {
+            for (int j = i; j < i + SPECIES.length(); j++) {
                 if (mask[j % SPECIES.length()]) {
                     expected[i + indexMap[j]] = a[j];
                 }
@@ -1071,14 +1068,11 @@ public class Byte128VectorLoadStoreTests extends AbstractVectorTest {
     }
 
     static void assertScatterArraysEquals(byte[] r, byte[] a, int[] indexMap) {
-        int i = 0;
-        int j = 0;
         byte[] expected = new byte[r.length];
 
         // Store before checking, since the same location may be stored to more than once
-        for (; i < a.length; i += SPECIES.length()) {
-            j = i;
-            for (; j < i + SPECIES.length(); j++) {
+        for (int i = 0; i < a.length; i += SPECIES.length()) {
+            for (int j = i; j < i + SPECIES.length(); j++) {
                 expected[i + indexMap[j]] = a[j];
             }
         }
