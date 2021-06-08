@@ -1053,11 +1053,10 @@ public class Long64VectorLoadStoreTests extends AbstractVectorTest {
     }
 
 
-    static long[] gather(long a[], int ix, int[] b, int iy) {
+    static long[] gather(long a[], int aOffset, int[] b, int bOffset) {
         long[] res = new long[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
-            res[i] = a[b[bi] + ix];
+            res[i] = a[b[i + bOffset] + aOffset];
         }
         return res;
     }
@@ -1078,12 +1077,11 @@ public class Long64VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Long64VectorLoadStoreTests::gather);
     }
 
-    static long[] gatherMask(long a[], int ix, boolean[] mask, int[] b, int iy) {
+    static long[] gatherMask(long a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         long[] res = new long[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
             if (mask[i]) {
-              res[i] = a[b[bi] + ix];
+              res[i] = a[b[i + bOffset] + aOffset];
             }
         }
         return res;
@@ -1107,11 +1105,10 @@ public class Long64VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, mask, Long64VectorLoadStoreTests::gatherMask);
     }
 
-    static long[] scatter(long a[], int ix, int[] b, int iy) {
+    static long[] scatter(long a[], int aOffset, int[] b, int bOffset) {
         long[] res = new long[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = a[i + ix];
+            res[b[i + bOffset]] = a[i + aOffset];
         }
         return res;
     }
@@ -1132,21 +1129,20 @@ public class Long64VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Long64VectorLoadStoreTests::scatter);
     }
 
-    static long[] scatterMask(long r[], long a[], int ix, boolean[] mask, int[] b, int iy) {
+    static long[] scatterMask(long r[], long a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         // First, gather r.
-        long[] oldVal = gather(r, ix, b, iy);
+        long[] oldVal = gather(r, aOffset, b, bOffset);
         long[] newVal = new long[SPECIES.length()];
 
         // Second, blending it with a.
         for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i+ix] : oldVal[i];
+          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
         }
 
         // Third, scatter: copy old value of r, and scatter it manually.
-        long[] res = Arrays.copyOfRange(r, ix, ix+SPECIES.length());
+        long[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = newVal[i];
+          res[b[i + bOffset]] = newVal[i];
         }
 
         return res;

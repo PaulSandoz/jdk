@@ -1053,11 +1053,10 @@ public class Float128VectorLoadStoreTests extends AbstractVectorTest {
     }
 
 
-    static float[] gather(float a[], int ix, int[] b, int iy) {
+    static float[] gather(float a[], int aOffset, int[] b, int bOffset) {
         float[] res = new float[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
-            res[i] = a[b[bi] + ix];
+            res[i] = a[b[i + bOffset] + aOffset];
         }
         return res;
     }
@@ -1078,12 +1077,11 @@ public class Float128VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Float128VectorLoadStoreTests::gather);
     }
 
-    static float[] gatherMask(float a[], int ix, boolean[] mask, int[] b, int iy) {
+    static float[] gatherMask(float a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         float[] res = new float[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
             if (mask[i]) {
-              res[i] = a[b[bi] + ix];
+              res[i] = a[b[i + bOffset] + aOffset];
             }
         }
         return res;
@@ -1107,11 +1105,10 @@ public class Float128VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, mask, Float128VectorLoadStoreTests::gatherMask);
     }
 
-    static float[] scatter(float a[], int ix, int[] b, int iy) {
+    static float[] scatter(float a[], int aOffset, int[] b, int bOffset) {
         float[] res = new float[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = a[i + ix];
+            res[b[i + bOffset]] = a[i + aOffset];
         }
         return res;
     }
@@ -1132,21 +1129,20 @@ public class Float128VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Float128VectorLoadStoreTests::scatter);
     }
 
-    static float[] scatterMask(float r[], float a[], int ix, boolean[] mask, int[] b, int iy) {
+    static float[] scatterMask(float r[], float a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         // First, gather r.
-        float[] oldVal = gather(r, ix, b, iy);
+        float[] oldVal = gather(r, aOffset, b, bOffset);
         float[] newVal = new float[SPECIES.length()];
 
         // Second, blending it with a.
         for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i+ix] : oldVal[i];
+          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
         }
 
         // Third, scatter: copy old value of r, and scatter it manually.
-        float[] res = Arrays.copyOfRange(r, ix, ix+SPECIES.length());
+        float[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = newVal[i];
+          res[b[i + bOffset]] = newVal[i];
         }
 
         return res;

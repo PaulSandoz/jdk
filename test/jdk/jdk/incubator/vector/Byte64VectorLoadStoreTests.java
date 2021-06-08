@@ -1129,11 +1129,10 @@ public class Byte64VectorLoadStoreTests extends AbstractVectorTest {
     }
 
 
-    static byte[] gather(byte a[], int ix, int[] b, int iy) {
+    static byte[] gather(byte a[], int aOffset, int[] b, int bOffset) {
         byte[] res = new byte[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
-            res[i] = a[b[bi] + ix];
+            res[i] = a[b[i + bOffset] + aOffset];
         }
         return res;
     }
@@ -1154,12 +1153,11 @@ public class Byte64VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Byte64VectorLoadStoreTests::gather);
     }
 
-    static byte[] gatherMask(byte a[], int ix, boolean[] mask, int[] b, int iy) {
+    static byte[] gatherMask(byte a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         byte[] res = new byte[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
             if (mask[i]) {
-              res[i] = a[b[bi] + ix];
+              res[i] = a[b[i + bOffset] + aOffset];
             }
         }
         return res;
@@ -1183,11 +1181,10 @@ public class Byte64VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, mask, Byte64VectorLoadStoreTests::gatherMask);
     }
 
-    static byte[] scatter(byte a[], int ix, int[] b, int iy) {
+    static byte[] scatter(byte a[], int aOffset, int[] b, int bOffset) {
         byte[] res = new byte[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = a[i + ix];
+            res[b[i + bOffset]] = a[i + aOffset];
         }
         return res;
     }
@@ -1208,21 +1205,20 @@ public class Byte64VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Byte64VectorLoadStoreTests::scatter);
     }
 
-    static byte[] scatterMask(byte r[], byte a[], int ix, boolean[] mask, int[] b, int iy) {
+    static byte[] scatterMask(byte r[], byte a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         // First, gather r.
-        byte[] oldVal = gather(r, ix, b, iy);
+        byte[] oldVal = gather(r, aOffset, b, bOffset);
         byte[] newVal = new byte[SPECIES.length()];
 
         // Second, blending it with a.
         for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i+ix] : oldVal[i];
+          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
         }
 
         // Third, scatter: copy old value of r, and scatter it manually.
-        byte[] res = Arrays.copyOfRange(r, ix, ix+SPECIES.length());
+        byte[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = newVal[i];
+          res[b[i + bOffset]] = newVal[i];
         }
 
         return res;

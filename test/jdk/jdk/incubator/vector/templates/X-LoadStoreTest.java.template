@@ -1314,7 +1314,7 @@ public class $vectorteststype$ extends AbstractVectorTest {
     // Gather/Scatter load/store tests
 
     interface FGatherScatterOp {
-        $type$[] apply($type$[] a, int ix, int[] b, int iy);
+        $type$[] apply($type$[] a, int aOffset, int[] b, int bOffset);
     }
 
     static void assertArraysEquals($type$[] r, $type$[] a, int[] b, FGatherScatterOp f) {
@@ -1337,11 +1337,11 @@ public class $vectorteststype$ extends AbstractVectorTest {
     }
 
     interface FGatherMaskedOp {
-        $type$[] apply($type$[] a, int ix, boolean[] mask, int[] b, int iy);
+        $type$[] apply($type$[] a, int aOffset, boolean[] mask, int[] b, int bOffset);
     }
 
     interface FScatterMaskedOp {
-        $type$[] apply($type$[] r, $type$[] a, int ix, boolean[] mask, int[] b, int iy);
+        $type$[] apply($type$[] r, $type$[] a, int aOffset, boolean[] mask, int[] b, int bOffset);
     }
 
     static void assertArraysEquals($type$[] r, $type$[] a, int[] b, boolean[] mask, FGatherMaskedOp f) {
@@ -1420,11 +1420,10 @@ public class $vectorteststype$ extends AbstractVectorTest {
     }
 
 
-    static $type$[] gather($type$ a[], int ix, int[] b, int iy) {
+    static $type$[] gather($type$ a[], int aOffset, int[] b, int bOffset) {
         $type$[] res = new $type$[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
-            res[i] = a[b[bi] + ix];
+            res[i] = a[b[i + bOffset] + aOffset];
         }
         return res;
     }
@@ -1445,12 +1444,11 @@ public class $vectorteststype$ extends AbstractVectorTest {
         assertArraysEquals(r, a, b, $vectorteststype$::gather);
     }
 
-    static $type$[] gatherMask($type$ a[], int ix, boolean[] mask, int[] b, int iy) {
+    static $type$[] gatherMask($type$ a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         $type$[] res = new $type$[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
             if (mask[i]) {
-              res[i] = a[b[bi] + ix];
+                res[i] = a[b[i + bOffset] + aOffset];
             }
         }
         return res;
@@ -1474,11 +1472,10 @@ public class $vectorteststype$ extends AbstractVectorTest {
         assertArraysEquals(r, a, b, mask, $vectorteststype$::gatherMask);
     }
 
-    static $type$[] scatter($type$ a[], int ix, int[] b, int iy) {
+    static $type$[] scatter($type$ a[], int aOffset, int[] b, int bOffset) {
         $type$[] res = new $type$[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = a[i + ix];
+            res[b[i + bOffset]] = a[i + aOffset];
         }
         return res;
     }
@@ -1499,21 +1496,20 @@ public class $vectorteststype$ extends AbstractVectorTest {
         assertArraysEquals(r, a, b, $vectorteststype$::scatter);
     }
 
-    static $type$[] scatterMask($type$ r[], $type$ a[], int ix, boolean[] mask, int[] b, int iy) {
+    static $type$[] scatterMask($type$ r[], $type$ a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         // First, gather r.
-        $type$[] oldVal = gather(r, ix, b, iy);
+        $type$[] oldVal = gather(r, aOffset, b, bOffset);
         $type$[] newVal = new $type$[SPECIES.length()];
 
         // Second, blending it with a.
         for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i+ix] : oldVal[i];
+          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
         }
 
         // Third, scatter: copy old value of r, and scatter it manually.
-        $type$[] res = Arrays.copyOfRange(r, ix, ix+SPECIES.length());
+        $type$[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = newVal[i];
+          res[b[i + bOffset]] = newVal[i];
         }
 
         return res;

@@ -1062,11 +1062,10 @@ public class DoubleMaxVectorLoadStoreTests extends AbstractVectorTest {
     }
 
 
-    static double[] gather(double a[], int ix, int[] b, int iy) {
+    static double[] gather(double a[], int aOffset, int[] b, int bOffset) {
         double[] res = new double[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
-            res[i] = a[b[bi] + ix];
+            res[i] = a[b[i + bOffset] + aOffset];
         }
         return res;
     }
@@ -1087,12 +1086,11 @@ public class DoubleMaxVectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, DoubleMaxVectorLoadStoreTests::gather);
     }
 
-    static double[] gatherMask(double a[], int ix, boolean[] mask, int[] b, int iy) {
+    static double[] gatherMask(double a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         double[] res = new double[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
             if (mask[i]) {
-              res[i] = a[b[bi] + ix];
+                res[i] = a[b[i + bOffset] + aOffset];
             }
         }
         return res;
@@ -1116,11 +1114,10 @@ public class DoubleMaxVectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, mask, DoubleMaxVectorLoadStoreTests::gatherMask);
     }
 
-    static double[] scatter(double a[], int ix, int[] b, int iy) {
+    static double[] scatter(double a[], int aOffset, int[] b, int bOffset) {
         double[] res = new double[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = a[i + ix];
+            res[b[i + bOffset]] = a[i + aOffset];
         }
         return res;
     }
@@ -1141,21 +1138,20 @@ public class DoubleMaxVectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, DoubleMaxVectorLoadStoreTests::scatter);
     }
 
-    static double[] scatterMask(double r[], double a[], int ix, boolean[] mask, int[] b, int iy) {
+    static double[] scatterMask(double r[], double a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         // First, gather r.
-        double[] oldVal = gather(r, ix, b, iy);
+        double[] oldVal = gather(r, aOffset, b, bOffset);
         double[] newVal = new double[SPECIES.length()];
 
         // Second, blending it with a.
         for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i+ix] : oldVal[i];
+          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
         }
 
         // Third, scatter: copy old value of r, and scatter it manually.
-        double[] res = Arrays.copyOfRange(r, ix, ix+SPECIES.length());
+        double[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = newVal[i];
+          res[b[i + bOffset]] = newVal[i];
         }
 
         return res;

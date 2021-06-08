@@ -147,9 +147,8 @@ public class AbstractVectorTest {
                                       fb -> List.of(fa, fb))).collect(Collectors.toList());
 
     static final List<BiFunction<Integer,Integer,int[]>> INT_SHUFFLE_GENERATORS = List.of(
-            withToStringBi("shuffle[random]", (Integer l, Integer m) -> {
-                return RAND.ints(l, 0, m).toArray();
-            })
+            withToStringBi("shuffle[random]",
+                    (Integer l, Integer m) -> RAND.ints(l, 0, m).toArray())
     );
 
     interface RangeIntOp {

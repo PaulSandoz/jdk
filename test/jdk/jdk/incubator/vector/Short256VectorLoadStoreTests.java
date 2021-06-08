@@ -1297,11 +1297,10 @@ public class Short256VectorLoadStoreTests extends AbstractVectorTest {
     }
 
 
-    static short[] gather(short a[], int ix, int[] b, int iy) {
+    static short[] gather(short a[], int aOffset, int[] b, int bOffset) {
         short[] res = new short[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
-            res[i] = a[b[bi] + ix];
+            res[i] = a[b[i + bOffset] + aOffset];
         }
         return res;
     }
@@ -1322,12 +1321,11 @@ public class Short256VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Short256VectorLoadStoreTests::gather);
     }
 
-    static short[] gatherMask(short a[], int ix, boolean[] mask, int[] b, int iy) {
+    static short[] gatherMask(short a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         short[] res = new short[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-            int bi = iy + i;
             if (mask[i]) {
-              res[i] = a[b[bi] + ix];
+              res[i] = a[b[i + bOffset] + aOffset];
             }
         }
         return res;
@@ -1351,11 +1349,10 @@ public class Short256VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, mask, Short256VectorLoadStoreTests::gatherMask);
     }
 
-    static short[] scatter(short a[], int ix, int[] b, int iy) {
+    static short[] scatter(short a[], int aOffset, int[] b, int bOffset) {
         short[] res = new short[SPECIES.length()];
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = a[i + ix];
+            res[b[i + bOffset]] = a[i + aOffset];
         }
         return res;
     }
@@ -1376,21 +1373,20 @@ public class Short256VectorLoadStoreTests extends AbstractVectorTest {
         assertArraysEquals(r, a, b, Short256VectorLoadStoreTests::scatter);
     }
 
-    static short[] scatterMask(short r[], short a[], int ix, boolean[] mask, int[] b, int iy) {
+    static short[] scatterMask(short r[], short a[], int aOffset, boolean[] mask, int[] b, int bOffset) {
         // First, gather r.
-        short[] oldVal = gather(r, ix, b, iy);
+        short[] oldVal = gather(r, aOffset, b, bOffset);
         short[] newVal = new short[SPECIES.length()];
 
         // Second, blending it with a.
         for (int i = 0; i < SPECIES.length(); i++) {
-          newVal[i] = mask[i] ? a[i+ix] : oldVal[i];
+          newVal[i] = mask[i] ? a[i + aOffset] : oldVal[i];
         }
 
         // Third, scatter: copy old value of r, and scatter it manually.
-        short[] res = Arrays.copyOfRange(r, ix, ix+SPECIES.length());
+        short[] res = Arrays.copyOfRange(r, aOffset, aOffset + SPECIES.length());
         for (int i = 0; i < SPECIES.length(); i++) {
-          int bi = iy + i;
-          res[b[bi]] = newVal[i];
+          res[b[i + bOffset]] = newVal[i];
         }
 
         return res;
