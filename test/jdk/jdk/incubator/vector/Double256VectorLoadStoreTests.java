@@ -1091,4 +1091,7 @@ public class Double256VectorLoadStoreTests extends AbstractVectorTest {
 
         assertScatterArraysEquals(r, a, b, mask);
     }
+
+
+
 }

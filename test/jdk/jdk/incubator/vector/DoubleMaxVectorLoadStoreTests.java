@@ -1100,4 +1100,7 @@ public class DoubleMaxVectorLoadStoreTests extends AbstractVectorTest {
 
         assertScatterArraysEquals(r, a, b, mask);
     }
+
+
+
 }

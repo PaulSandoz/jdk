@@ -1100,4 +1100,7 @@ public class IntMaxVectorLoadStoreTests extends AbstractVectorTest {
 
         assertScatterArraysEquals(r, a, b, mask);
     }
+
+
+
 }

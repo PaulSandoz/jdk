@@ -1100,4 +1100,7 @@ public class FloatMaxVectorLoadStoreTests extends AbstractVectorTest {
 
         assertScatterArraysEquals(r, a, b, mask);
     }
+
+
+
 }
