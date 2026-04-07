@@ -65,14 +65,11 @@ import sun.invoke.util.Wrapper;
  * @see LambdaMetafactory
  */
 /* package */ final class InnerClassLambdaMetafactory extends AbstractValidatingLambdaMetafactory {
-    private static final String LAMBDA_INSTANCE_FIELD = "LAMBDA_INSTANCE$";
     private static final @Stable String[] ARG_NAME_CACHE = {"arg$1", "arg$2", "arg$3", "arg$4", "arg$5", "arg$6", "arg$7", "arg$8"};
     private static final ClassDesc[] EMPTY_CLASSDESC_ARRAY = ConstantUtils.EMPTY_CLASSDESC;
 
     // For dumping generated classes to disk, for debugging purposes
     private static final ClassFileDumper lambdaProxyClassFileDumper;
-
-    private static final boolean disableEagerInitialization;
 
     static {
         // To dump the lambda proxy classes, set this system property:
@@ -80,9 +77,6 @@ import sun.invoke.util.Wrapper;
         // or -Djdk.invoke.LambdaMetafactory.dumpProxyClassFiles=true
         final String dumpProxyClassesKey = "jdk.invoke.LambdaMetafactory.dumpProxyClassFiles";
         lambdaProxyClassFileDumper = ClassFileDumper.getInstance(dumpProxyClassesKey, "DUMP_LAMBDA_PROXY_CLASS_FILES");
-
-        final String disableEagerInitializationKey = "jdk.internal.lambda.disableEagerInitialization";
-        disableEagerInitialization = Boolean.getBoolean(disableEagerInitializationKey);
     }
 
     // See context values in AbstractValidatingLambdaMetafactory
@@ -212,29 +206,19 @@ import sun.invoke.util.Wrapper;
     @Override
     CallSite buildCallSite() throws LambdaConversionException {
         final Class<?> innerClass = spinInnerClass();
-        if (factoryType.parameterCount() == 0 && disableEagerInitialization) {
-            try {
-                return new ConstantCallSite(caller.findStaticGetter(innerClass, LAMBDA_INSTANCE_FIELD,
-                                                                    factoryType.returnType()));
-            } catch (ReflectiveOperationException e) {
-                throw new LambdaConversionException(
-                        "Exception finding " + LAMBDA_INSTANCE_FIELD + " static field", e);
+        try {
+            MethodHandle mh = caller.findConstructor(innerClass, constructorType);
+            if (factoryType.parameterCount() == 0) {
+                // In the case of a non-capturing lambda, we optimize linkage by pre-computing a single instance
+                Object inst = mh.invokeBasic();
+                return new ConstantCallSite(MethodHandles.constant(interfaceClass, inst));
+            } else {
+                return new ConstantCallSite(mh.asType(factoryType));
             }
-        } else {
-            try {
-                MethodHandle mh = caller.findConstructor(innerClass, constructorType);
-                if (factoryType.parameterCount() == 0) {
-                    // In the case of a non-capturing lambda, we optimize linkage by pre-computing a single instance
-                    Object inst = mh.invokeBasic();
-                    return new ConstantCallSite(MethodHandles.constant(interfaceClass, inst));
-                } else {
-                    return new ConstantCallSite(mh.asType(factoryType));
-                }
-            } catch (ReflectiveOperationException e) {
-                throw new LambdaConversionException("Exception finding constructor", e);
-            } catch (Throwable e) {
-                throw new LambdaConversionException("Exception instantiating lambda object", e);
-            }
+        } catch (ReflectiveOperationException e) {
+            throw new LambdaConversionException("Exception finding constructor", e);
+        } catch (Throwable e) {
+            throw new LambdaConversionException("Exception instantiating lambda object", e);
         }
     }
 
@@ -246,8 +230,8 @@ import sun.invoke.util.Wrapper;
      * registers the lambda proxy class for including into the CDS archive.
      */
     private Class<?> spinInnerClass() throws LambdaConversionException {
-        // CDS does not handle disableEagerInitialization or useImplMethodHandle
-        if (!disableEagerInitialization && !useImplMethodHandle) {
+        // CDS does not handle useImplMethodHandle
+        if (!useImplMethodHandle) {
             if (CDS.isUsingArchive()) {
                 // load from CDS archive if present
                 Class<?> innerClass = LambdaProxyClassArchive.find(targetClass,
@@ -319,10 +303,6 @@ import sun.invoke.util.Wrapper;
 
                 generateConstructor(clb);
 
-                if (factoryType.parameterCount() == 0 && disableEagerInitialization) {
-                    generateClassInitializer(clb);
-                }
-
                 // Forward the SAM method
                 clb.withMethodBody(interfaceMethodName,
                         methodDesc(interfaceMethodType),
@@ -352,34 +332,11 @@ import sun.invoke.util.Wrapper;
             // this class is linked at the indy callsite; so define a hidden nestmate
             var classdata = useImplMethodHandle? implementation : null;
             return caller.makeHiddenClassDefiner(lambdaClassName, classBytes, lambdaProxyClassFileDumper, NESTMATE_CLASS | STRONG_LOADER_LINK)
-                         .defineClass(!disableEagerInitialization, classdata);
+                         .defineClass(true, classdata);
 
         } catch (Throwable t) {
             throw new InternalError(t);
         }
-    }
-
-    /**
-     * Generate a static field and a static initializer that sets this field to an instance of the lambda
-     */
-    private void generateClassInitializer(ClassBuilder clb) {
-        ClassDesc lambdaTypeDescriptor = classDesc(factoryType.returnType());
-
-        // Generate the static final field that holds the lambda singleton
-        clb.withField(LAMBDA_INSTANCE_FIELD, lambdaTypeDescriptor, ACC_PRIVATE | ACC_STATIC | ACC_FINAL);
-
-        // Instantiate the lambda and store it to the static final field
-        clb.withMethodBody(CLASS_INIT_NAME, MTD_void, ACC_STATIC, new Consumer<>() {
-            @Override
-            public void accept(CodeBuilder cob) {
-                assert factoryType.parameterCount() == 0;
-                cob.new_(lambdaClassEntry)
-                   .dup()
-                   .invokespecial(pool.methodRefEntry(lambdaClassEntry, pool.nameAndTypeEntry(INIT_NAME, constructorTypeDesc)))
-                   .putstatic(pool.fieldRefEntry(lambdaClassEntry, pool.nameAndTypeEntry(LAMBDA_INSTANCE_FIELD, lambdaTypeDescriptor)))
-                   .return_();
-            }
-        });
     }
 
     /**
